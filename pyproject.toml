@@ -1,0 +1,37 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "dompruner"
+version = "0.1.0"
+description = "DOM AST pruning for LLM pipelines — 90%+ token reduction, no API key"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+keywords = ["llm", "rag", "dom", "token-reduction", "langchain", "web-scraping", "mcp"]
+dependencies = [
+    "httpx>=0.27",
+    "beautifulsoup4>=4.12",
+    "rank-bm25>=0.2.2",
+    "markdownify>=0.13",
+    "langchain-core>=0.3",
+]
+
+[project.optional-dependencies]
+playwright = ["playwright>=1.44"]
+dev = ["pytest>=8", "pytest-asyncio>=0.23", "ruff>=0.4"]
+
+[project.urls]
+Homepage = "https://github.com/dong7812/dompruner-py"
+Repository = "https://github.com/dong7812/dompruner-py"
+"MCP version (Node.js)" = "https://github.com/dong7812/dompruner-mcp"
+
+[tool.hatch.build.targets.wheel]
+packages = ["dompruner"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
