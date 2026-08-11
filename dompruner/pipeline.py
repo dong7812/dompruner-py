@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import time
 from dataclasses import dataclass
 
@@ -36,6 +37,23 @@ _cache: LRUTTLCache[PipelineResult] = LRUTTLCache(maxsize=256, ttl=300.0)
 # 이후 코루틴: 잠금 획득 → double-check에서 캐시 히트 → 즉시 반환
 # trade-off 상세: docs/decisions/thundering-herd.md
 _key_sems: dict[str, asyncio.Semaphore] = {}
+
+
+def sync_run(coro) -> PipelineResult:
+    """Run a coroutine from synchronous code.
+
+    Handles three environments:
+    - Normal sync: asyncio.run() creates a fresh event loop.
+    - Jupyter / FastAPI / already-running loop: runs in a new thread so the
+      nested-loop restriction is bypassed without requiring nest_asyncio.
+    """
+    try:
+        asyncio.get_running_loop()
+        # A loop is already running — offload to a worker thread.
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            return pool.submit(asyncio.run, coro).result()
+    except RuntimeError:
+        return asyncio.run(coro)
 
 
 def get_cache() -> LRUTTLCache[PipelineResult]:

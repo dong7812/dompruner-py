@@ -1,13 +1,12 @@
 """DomPrunerLoader — LangChain BaseLoader integration."""
 from __future__ import annotations
 
-import asyncio
 from typing import AsyncIterator, Iterator
 
 from langchain_core.document_loaders.base import BaseLoader
 from langchain_core.documents import Document
 
-from ..pipeline import run_pipeline
+from ..pipeline import run_pipeline, sync_run
 
 
 class DomPrunerLoader(BaseLoader):
@@ -27,9 +26,7 @@ class DomPrunerLoader(BaseLoader):
         self.query = query
 
     def lazy_load(self) -> Iterator[Document]:
-        result = asyncio.get_event_loop().run_until_complete(
-            run_pipeline(self.url, self.query)
-        )
+        result = sync_run(run_pipeline(self.url, self.query))
         yield Document(
             page_content=result.markdown,
             metadata={

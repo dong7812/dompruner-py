@@ -7,7 +7,7 @@ from langchain_core.callbacks import CallbackManagerForToolRun, AsyncCallbackMan
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
-from ..pipeline import run_pipeline
+from ..pipeline import run_pipeline, sync_run
 
 
 class _DomPrunerInput(BaseModel):
@@ -38,8 +38,7 @@ class DomPrunerFetchTool(BaseTool):
         query: str = "",
         run_manager: Optional[CallbackManagerForToolRun] = None,
     ) -> str:
-        import asyncio
-        result = asyncio.get_event_loop().run_until_complete(run_pipeline(url, query))
+        result = sync_run(run_pipeline(url, query))
         return result.markdown
 
     async def _arun(
