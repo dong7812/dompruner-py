@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "dompruner"
-version = "0.6.0"
+version = "0.7.0"
 description = "DOM AST pruning for LLM pipelines — 90%+ token reduction, no API key"
 readme = "README.md"
 license = { text = "MIT" }
