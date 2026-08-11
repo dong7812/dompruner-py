@@ -170,7 +170,13 @@ def _collect_fqn_nodes(root: Tag) -> list[FQNNode]:
                 seen.add(text)
                 code_lang = None
                 if tag == "pre":
+                    # Check <pre> class first, then fall back to inner <code> class.
+                    # Many syntax highlighters (e.g. highlight.js, Prism) put
+                    # language-xxx on the <code> child rather than <pre> itself.
                     cls = " ".join(el.get("class", []))
+                    code_child = el.find("code")
+                    if isinstance(code_child, Tag):
+                        cls = cls + " " + " ".join(code_child.get("class", []))
                     m = re.search(r"language-(\w+)", cls)
                     code_lang = m.group(1) if m else None
                 results.append(FQNNode(tag=tag, text=text, depth=depth, code_lang=code_lang))
