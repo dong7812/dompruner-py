@@ -21,8 +21,10 @@ _NOISE_TAGS = {
 
 _CONTENT_TAGS = {
     "p", "h1", "h2", "h3", "h4", "h5",
-    "li", "td", "th", "blockquote", "pre", "code",
+    "li", "blockquote", "pre", "code",
 }
+
+_TABLE_TAGS = {"table"}
 
 _HEADING_TAGS = {"h1", "h2", "h3", "h4", "h5"}
 _DEV_HEADING_TAGS = {"h2", "h3", "h4"}
@@ -51,6 +53,8 @@ class FQNNode:
     depth: int
     href: str | None = None
     code_lang: str | None = None
+    cells: list[str] | None = None  # populated for tag="table_row"
+    is_header: bool = False          # True when the row came from <thead> or contains <th>
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
@@ -84,8 +88,11 @@ def _collect_fqn_nodes(root: Tag) -> list[FQNNode]:
         tag = el.name
         if tag in _NOISE_TAGS:
             return
-        if tag not in _CONTENT_TAGS and _is_noise(el):
+        if tag not in _CONTENT_TAGS and tag not in _TABLE_TAGS and _is_noise(el):
             return
+        if tag in _TABLE_TAGS:
+            results.extend(_collect_table_rows(el, depth))
+            return  # don't recurse; table handler owns its subtree
         if tag in _CONTENT_TAGS:
             text = _extract_text(el)
             min_len = 3 if tag in _HEADING_TAGS else 10
@@ -104,6 +111,31 @@ def _collect_fqn_nodes(root: Tag) -> list[FQNNode]:
 
     walk(root, 0)
     return results
+
+
+def _collect_table_rows(table_el: Tag, depth: int) -> list[FQNNode]:
+    """Convert a <table> element into table_row FQNNodes (one per <tr>)."""
+    rows: list[FQNNode] = []
+    for tr in table_el.find_all("tr"):
+        if not isinstance(tr, Tag):
+            continue
+        parent = tr.parent
+        is_header = (isinstance(parent, Tag) and parent.name == "thead") or bool(tr.find("th"))
+        cells = [
+            cell.get_text(" ", strip=True)
+            for cell in tr.find_all(["td", "th"])
+            if isinstance(cell, Tag)
+        ]
+        if not any(cells):
+            continue
+        rows.append(FQNNode(
+            tag="table_row",
+            text=" | ".join(cells),
+            depth=depth,
+            cells=cells,
+            is_header=is_header,
+        ))
+    return rows
 
 
 # ── Shared helpers ────────────────────────────────────────────────────────────

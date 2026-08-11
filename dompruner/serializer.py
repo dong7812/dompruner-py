@@ -8,24 +8,45 @@ _HEADING_PREFIX = {
 }
 
 
+def _render_table(rows: list[FQNNode]) -> str:
+    lines: list[str] = []
+    for row in rows:
+        cells = row.cells or [row.text]
+        lines.append("| " + " | ".join(cells) + " |")
+        if row.is_header:
+            lines.append("| " + " | ".join("---" for _ in cells) + " |")
+    return "\n".join(lines)
+
+
 def serialize(nodes: list[FQNNode]) -> str:
     parts: list[str] = []
-    for node in nodes:
-        text = node.text.strip()
-        if not text:
+    i = 0
+    while i < len(nodes):
+        node = nodes[i]
+        if node.tag == "table_row":
+            table_rows: list[FQNNode] = []
+            while i < len(nodes) and nodes[i].tag == "table_row":
+                table_rows.append(nodes[i])
+                i += 1
+            parts.append(_render_table(table_rows))
             continue
-        tag = node.tag
-        if tag in _HEADING_PREFIX:
-            parts.append(f"{_HEADING_PREFIX[tag]}{text}")
-        elif tag in ("pre", "code"):
-            lang = node.code_lang or ""
-            parts.append(f"```{lang}\n{text}\n```")
-        elif tag == "li":
-            parts.append(f"- {text}")
-        elif tag == "blockquote":
-            parts.append(f"> {text}")
-        else:
-            parts.append(text)
+
+        text = node.text.strip()
+        if text:
+            tag = node.tag
+            if tag in _HEADING_PREFIX:
+                parts.append(f"{_HEADING_PREFIX[tag]}{text}")
+            elif tag in ("pre", "code"):
+                lang = node.code_lang or ""
+                parts.append(f"```{lang}\n{text}\n```")
+            elif tag == "li":
+                parts.append(f"- {text}")
+            elif tag == "blockquote":
+                parts.append(f"> {text}")
+            else:
+                parts.append(text)
+        i += 1
+
     return "\n\n".join(parts)
 
 
