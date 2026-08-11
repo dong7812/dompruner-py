@@ -132,6 +132,14 @@ async def _do_fetch(url: str, query: str) -> PipelineResult:
         markdown = serialize(nodes)
 
     parse_ms = (time.perf_counter() - t1) * 1000
+
+    if not markdown.strip():
+        raise ValueError(
+            f"No extractable content at {fetched.url}. "
+            "The page may require JavaScript rendering — "
+            "install dompruner[playwright] and run `playwright install chromium`."
+        )
+
     refined_tokens = estimate_tokens(markdown)
 
     return PipelineResult(
