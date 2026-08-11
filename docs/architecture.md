@@ -6,17 +6,19 @@
 URL
  └─▶ fetch_page()       — tiered fetch: direct → UA rotation → Playwright fallback
       │
-      ├─▶ [SSG]  extract_ssg_markdown()
-      │           walks __NEXT_DATA__ RSC tuple tree → clean Markdown
-      │           skips DOM parse entirely
-      │
-      └─▶ [SSR/CSR]  BeautifulSoup DOM tree  (parsed once — content + meta shared)
-                └─▶ FQN Router (L1)        keeps p / h1–h5 / li / pre / code / table
-                     │                     prunes nav / footer / aside / form
-                     └─▶ Heading Cluster (L2)  dev-doc structure detection
-                          └─▶ CETD Engine (L3)  text-density scoring fallback
-                               └─▶ BM25+ Section Filter  query-aware ranking
-                                    └─▶ Compact Markdown  ──▶  LLM context
+      └─▶ BeautifulSoup DOM tree  (always parsed — content nodes + meta shared)
+           │
+           ├─▶ [SSG]  extract_ssg_markdown()
+           │           walks __NEXT_DATA__ RSC tuple tree → clean Markdown
+           │           falls back to DOM extraction if payload structure unrecognised
+           │
+           └─▶ [SSR/CSR]  DOM AST pipeline
+                     └─▶ FQN Router (L1)        keeps p / h1–h5 / li / pre / code / table
+                          │                     prunes nav / footer / aside / form
+                          └─▶ Heading Cluster (L2)  dev-doc structure detection
+                               └─▶ CETD Engine (L3)  text-density scoring fallback
+                                    └─▶ BM25+ Section Filter  query-aware ranking
+                                         └─▶ Compact Markdown  ──▶  LLM context
 ```
 
 ---
@@ -25,9 +27,9 @@ URL
 
 | Type | Signal | Strategy |
 |---|---|---|
-| SSG | `__NEXT_DATA__`, `window.__NUXT__`, `window.page` | RSC tuple tree walk — DOM parse skipped |
+| SSG | `__NEXT_DATA__`, `window.__NUXT__`, `window.page` detected in HTML | Attempts RSC tuple tree walk (Next.js `props.pageProps.content` structure); falls back to SSR pipeline if payload structure is unrecognised |
 | SSR | Body text density ≥ 2% | Full DOM AST pipeline (L1→L2→L3) |
-| CSR | Body text density < 2% | DOM AST pipeline (partial content) + Playwright fallback |
+| CSR | Body text density < 2% | DOM AST pipeline on sparse HTML; produces partial content |
 
 ---
 
@@ -37,9 +39,9 @@ URL
 |---|---|---|
 | L1 | Default | `httpx` direct fetch |
 | L2 | 403 / 429 response | User-Agent rotation (3 browser strings) |
-| L3 | CSR detected or L2 fails | `playwright` headless browser (optional) |
+| L3 | All UA strings exhausted without success | `playwright` headless browser (optional) |
 
-4xx/5xx responses other than 403/429 raise immediately — no unnecessary fallback for pages that genuinely don't exist.
+4xx/5xx responses other than 403/429 raise immediately — no unnecessary fallback for pages that genuinely don't exist. CSR detection happens after fetch and does not trigger a Playwright retry; Playwright is a fetch-level fallback only.
 
 ---
 
@@ -51,7 +53,7 @@ Each layer runs only if the previous layer's output doesn't meet the coverage th
 
 **L2 — Heading Cluster:** detects developer documentation structure. Requires ≥2 `h2–h4` headings with meaningful content (avg ≥400 chars/cluster) and link density < 0.3. Groups content under its nearest heading.
 
-**L3 — CETD Engine:** text-density scoring over container elements (`article`, `main`, `section`, `div`). Selects the subtree with the highest `(text_len / tag_count) × (1 − link_ratio) × depth_penalty` score. Last resort fallback.
+**L3 — CETD Engine:** text-density scoring over container elements (`article`, `main`, `section`, `div`, `td`). Selects the subtree with the highest `(text_len / tag_count) × (1 − link_ratio) × depth_penalty` score. Last resort fallback.
 
 ---
 
@@ -81,7 +83,7 @@ LRU + TTL in-process cache. Default: `maxsize=256`, `ttl=300s`.
 from dompruner import get_cache
 
 cache = get_cache()
-print(cache.stats)  # {'hits': 12, 'misses': 3, 'evictions': 0}
+print(cache.stats)  # {'total': 15, 'alive': 12, 'expired': 3}
 cache.clear()
 ```
 
@@ -99,7 +101,7 @@ dompruner/
                          LRU+TTL cache + per-key Semaphore
   fetcher.py           — Tiered HTTP fetch (httpx → UA rotation → Playwright)
   extractor.py         — L1→L2→L3 extraction cascade + extract_meta()
-  ssg.py               — __NEXT_DATA__ / Nuxt RSC tuple tree walker
+  ssg.py               — __NEXT_DATA__ RSC tuple tree walker (Next.js only)
   bm25.py              — BM25+ section filter
   serializer.py        — FQNNode[] → Compact Markdown (tables, code, headings, lists)
   cache.py             — LRUTTLCache[V]: OrderedDict + asyncio.Lock + TTL eviction
@@ -118,7 +120,7 @@ Faithful Python port of [dompruner-mcp](https://github.com/dong7812/dompruner-mc
 ## Research Backing
 
 **Web page context is too large for LLM agents**
-FocusAgent (Oct 2025) confirms web pages routinely exceed tens of thousands of tokens, saturating context limits and increasing cost. Their LLM-based retriever achieves 50%+ observation size reduction; dompruner achieves 97%+ via deterministic DOM AST — no intermediate model, no hallucination risk.
+FocusAgent (Oct 2025) confirms web pages routinely exceed tens of thousands of tokens, saturating context limits and increasing cost. Their LLM-based retriever achieves 50%+ observation size reduction; dompruner achieves similar reductions via deterministic DOM AST — no intermediate model, no hallucination risk. With BM25 section filtering applied, reductions of 90%+ are typical for technical documentation.
 → [FocusAgent (2025)](https://arxiv.org/abs/2510.03204)
 
 **Relevant information in long contexts is systematically missed**

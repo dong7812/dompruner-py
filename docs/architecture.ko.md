@@ -6,17 +6,19 @@
 URL
  └─▶ fetch_page()       — 단계별 fetch: 직접 → UA 로테이션 → Playwright 폴백
       │
-      ├─▶ [SSG]  extract_ssg_markdown()
-      │           __NEXT_DATA__ RSC 튜플 트리 탐색 → Markdown
-      │           DOM 파싱 생략
-      │
-      └─▶ [SSR/CSR]  BeautifulSoup DOM 트리  (1회 파싱 — 콘텐츠 + 메타 공유)
-                └─▶ FQN Router (L1)        p / h1–h5 / li / pre / code / table 유지
-                     │                     nav / footer / aside / form 제거
-                     └─▶ Heading Cluster (L2)  개발 문서 구조 감지
-                          └─▶ CETD Engine (L3)  텍스트 밀도 스코어링 폴백
-                               └─▶ BM25+ 섹션 필터  쿼리 기반 랭킹
-                                    └─▶ Compact Markdown  ──▶  LLM 컨텍스트
+      └─▶ BeautifulSoup DOM 트리  (항상 파싱 — 콘텐츠 노드 + 메타 공유)
+           │
+           ├─▶ [SSG]  extract_ssg_markdown()
+           │           __NEXT_DATA__ RSC 튜플 트리 탐색 → Markdown
+           │           페이로드 구조 미인식 시 SSR 파이프라인으로 폴백
+           │
+           └─▶ [SSR/CSR]  DOM AST 파이프라인
+                     └─▶ FQN Router (L1)        p / h1–h5 / li / pre / code / table 유지
+                          │                     nav / footer / aside / form 제거
+                          └─▶ Heading Cluster (L2)  개발 문서 구조 감지
+                               └─▶ CETD Engine (L3)  텍스트 밀도 스코어링 폴백
+                                    └─▶ BM25+ 섹션 필터  쿼리 기반 랭킹
+                                         └─▶ Compact Markdown  ──▶  LLM 컨텍스트
 ```
 
 ---
@@ -25,9 +27,9 @@ URL
 
 | 타입 | 감지 신호 | 처리 전략 |
 |---|---|---|
-| SSG | `__NEXT_DATA__`, `window.__NUXT__`, `window.page` | RSC 튜플 트리 탐색 — DOM 파싱 생략 |
+| SSG | HTML 내 `__NEXT_DATA__`, `window.__NUXT__`, `window.page` 감지 | RSC 튜플 트리 탐색 시도 (Next.js `props.pageProps.content` 구조); 페이로드 구조 미인식 시 SSR 파이프라인으로 폴백 |
 | SSR | 본문 텍스트 밀도 ≥ 2% | 전체 DOM AST 파이프라인 (L1→L2→L3) |
-| CSR | 본문 텍스트 밀도 < 2% | DOM AST 파이프라인 + Playwright 폴백 |
+| CSR | 본문 텍스트 밀도 < 2% | 희박한 HTML에서 DOM AST 파이프라인 실행; 부분적인 콘텐츠 반환 |
 
 ---
 
@@ -37,9 +39,9 @@ URL
 |---|---|---|
 | L1 | 기본 | `httpx` 직접 요청 |
 | L2 | 403 / 429 응답 | User-Agent 로테이션 (브라우저 UA 3종) |
-| L3 | CSR 감지 또는 L2 실패 | `playwright` 헤드리스 브라우저 (선택 설치) |
+| L3 | 모든 UA 소진 후에도 실패 | `playwright` 헤드리스 브라우저 (선택 설치) |
 
-403/429 이외의 4xx/5xx는 즉시 에러로 전파합니다 — 존재하지 않는 페이지에 불필요한 폴백 시도를 하지 않습니다.
+403/429 이외의 4xx/5xx는 즉시 에러로 전파합니다 — 존재하지 않는 페이지에 불필요한 폴백 시도를 하지 않습니다. CSR 감지는 fetch 이후에 이루어지며, Playwright 재시도를 자동으로 트리거하지 않습니다. Playwright는 fetch 레벨 폴백에서만 사용됩니다.
 
 ---
 
@@ -51,7 +53,7 @@ URL
 
 **L2 — Heading Cluster:** 개발 문서 구조를 감지합니다. `h2–h4` 헤딩이 2개 이상이고, 클러스터당 평균 400자 이상, 링크 밀도 0.3 미만인 경우에만 활성화됩니다. 콘텐츠를 가장 가까운 헤딩 아래로 그룹화합니다.
 
-**L3 — CETD Engine:** 컨테이너 요소(`article`, `main`, `section`, `div`) 전체에 텍스트 밀도 스코어를 부여합니다. `(텍스트 길이 / 태그 수) × (1 − 링크 비율) × 깊이 패널티`가 가장 높은 서브트리를 선택합니다. 마지막 폴백입니다.
+**L3 — CETD Engine:** 컨테이너 요소(`article`, `main`, `section`, `div`, `td`) 전체에 텍스트 밀도 스코어를 부여합니다. `(텍스트 길이 / 태그 수) × (1 − 링크 비율) × 깊이 패널티`가 가장 높은 서브트리를 선택합니다. 마지막 폴백입니다.
 
 ---
 
@@ -81,7 +83,7 @@ LRU + TTL 인메모리 캐시. 기본값: `maxsize=256`, `ttl=300초`.
 from dompruner import get_cache
 
 cache = get_cache()
-print(cache.stats)  # {'hits': 12, 'misses': 3, 'evictions': 0}
+print(cache.stats)  # {'total': 15, 'alive': 12, 'expired': 3}
 cache.clear()
 ```
 
@@ -99,7 +101,7 @@ dompruner/
                          LRU+TTL 캐시 + per-key Semaphore
   fetcher.py           — 단계별 HTTP fetch (httpx → UA 로테이션 → Playwright)
   extractor.py         — L1→L2→L3 추출 캐스케이드 + extract_meta()
-  ssg.py               — __NEXT_DATA__ / Nuxt RSC 튜플 트리 탐색기
+  ssg.py               — __NEXT_DATA__ RSC 튜플 트리 탐색기 (Next.js 전용)
   bm25.py              — BM25+ 섹션 필터
   serializer.py        — FQNNode[] → Compact Markdown (테이블, 코드, 헤딩, 목록)
   cache.py             — LRUTTLCache[V]: OrderedDict + asyncio.Lock + TTL 만료
@@ -118,7 +120,7 @@ dompruner/
 ## 연구 배경
 
 **웹 페이지 컨텍스트는 LLM 에이전트에게 너무 큽니다**
-FocusAgent (2025년 10월)는 웹 페이지가 수만 토큰을 초과하여 컨텍스트 한계를 포화시키고 비용을 증가시킨다는 것을 확인했습니다. 그들의 LLM 기반 리트리버는 관찰 크기를 50%+ 줄이는 반면, dompruner는 결정론적 DOM AST로 97%+를 달성합니다 — 중간 모델 없음, 전처리 단계에서의 환각 위험 없음.
+FocusAgent (2025년 10월)는 웹 페이지가 수만 토큰을 초과하여 컨텍스트 한계를 포화시키고 비용을 증가시킨다는 것을 확인했습니다. 그들의 LLM 기반 리트리버는 관찰 크기를 50%+ 줄이는 반면, dompruner는 결정론적 DOM AST로 유사한 절감을 달성합니다 — 중간 모델 없음, 전처리 단계에서의 환각 위험 없음. BM25 섹션 필터를 적용하면 기술 문서에서 90%+ 절감이 일반적입니다.
 → [FocusAgent (2025)](https://arxiv.org/abs/2510.03204)
 
 **긴 컨텍스트에서 관련 정보는 체계적으로 누락됩니다**
