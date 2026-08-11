@@ -2,7 +2,7 @@
 
 English | [한국어](./README.ko.md)
 
-> [dompruner-mcp](https://github.com/dong7812/dompruner-mcp)의 Python 포트 — LangChain, LlamaIndex, 직접 사용을 위한 DOM AST 정제.
+> LLM 파이프라인을 위한 DOM AST 웹 로더 — DOM AST 파싱으로 nav/광고/스크립트를 제거하고 원본 콘텐츠를 토큰 효율적으로 모델에 전달합니다.
 
 LLM 에이전트가 웹 페이지를 가져오면, 필요 없는 수만 토큰의 raw HTML을 받게 됩니다 — 네비게이션, 광고, 스크립트, 푸터. dompruner는 DOM AST 파싱으로 이것들을 제거하고 **원본 콘텐츠를 그대로 모델에 전달**합니다. 중간 요약 모델도, API 키도, 벡터 데이터베이스도 필요 없습니다.
 

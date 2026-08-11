@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "dompruner"
 version = "0.7.0"
-description = "DOM AST pruning for LLM pipelines — 90%+ token reduction, no API key"
+description = "DOM AST web loader for LLM pipelines — 90%+ token reduction, no API key"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
@@ -16,6 +16,7 @@ dependencies = [
     "rank-bm25>=0.2.2",
     "markdownify>=0.13",
     "langchain-core>=0.3",
+    "trafilatura>=2.2.0",
 ]
 
 [project.optional-dependencies]
