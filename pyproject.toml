@@ -16,7 +16,6 @@ dependencies = [
     "rank-bm25>=0.2.2",
     "markdownify>=0.13",
     "langchain-core>=0.3",
-    "trafilatura>=2.2.0",
 ]
 
 [project.optional-dependencies]
