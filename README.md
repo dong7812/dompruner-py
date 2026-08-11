@@ -23,34 +23,78 @@ The result: **97.3% fewer tokens on average** across documentation, API referenc
 pip install dompruner
 ```
 
-### Direct use
+### CLI
+
+```bash
+# Human-readable output
+python -m dompruner https://docs.python.org/3/library/asyncio-task.html
+
+# With BM25 section filter
+python -m dompruner https://docs.python.org/3/library/asyncio-task.html "create_task"
+
+# JSON output
+python -m dompruner https://docs.python.org/3/library/asyncio-task.html --json
+```
+
+```
+URL          : https://docs.python.org/3/library/asyncio-task.html
+Title        : asyncio — Asynchronous I/O
+Render type  : SSR
+Tokens       : 44,315 → 1,275  (97.1% reduction)
+BM25 score   : 4.21
+Cached       : No
+Fetch        : 133ms  Parse: 73ms
+────────────────────────────────────────
+# asyncio — Asynchronous I/O
+...
+```
+
+### Direct use (Python)
 
 ```python
 import asyncio
 from dompruner import run_pipeline
 
-result = asyncio.run(run_pipeline("https://docs.python.org/3/library/asyncio-task.html",
-                                   query="create_task"))
+result = asyncio.run(run_pipeline(
+    "https://docs.python.org/3/library/asyncio-task.html",
+    query="create_task",
+))
 print(result.markdown)
-print(f"Tokens: {result.original_tokens:,} → {result.refined_tokens:,} ({result.reduction_ratio:.1%} reduction)")
-print(f"Fetch: {result.fetch_ms:.0f}ms · Parse: {result.parse_ms:.1f}ms")
+print(f"Tokens: {result.original_tokens:,} → {result.refined_tokens:,} ({result.reduction_ratio:.1%})")
+print(result.meta)
+# {'title': 'asyncio — Asynchronous I/O', 'lang': 'en', 'description': '...', ...}
 ```
 
-### LangChain — Document Loader
+---
 
-> Listed in the [LangChain Python integrations overview](https://docs.langchain.com/oss/python/integrations/document_loaders) as a third-party web loader. The overview links directly to this repository — there is no separate hosted docs page.
+## LangChain Integration
+
+> Listed in the [LangChain Python integrations overview](https://docs.langchain.com/oss/python/integrations/document_loaders) as a third-party web loader.
+
+### Document Loader — single URL
 
 ```python
 from dompruner.langchain import DomPrunerLoader
 
-# Synchronous
-docs = DomPrunerLoader("https://fastapi.tiangolo.com/tutorial/body/",
-                       query="request body").load()
+docs = DomPrunerLoader(
+    "https://fastapi.tiangolo.com/tutorial/body/",
+    query="request body",
+).load()
+
 doc = docs[0]
 print(doc.page_content)
 print(doc.metadata)
-# {'source': '...', 'render_type': 'SSR', 'original_tokens': 31659,
-#  'refined_tokens': 1694, 'reduction_ratio': 0.946, ...}
+# {
+#   'source': 'https://fastapi.tiangolo.com/tutorial/body/',
+#   'render_type': 'SSR',
+#   'original_tokens': 31659,
+#   'refined_tokens': 1694,
+#   'reduction_ratio': 0.946,
+#   'bm25_confidence': 3.21,
+#   'title': 'Request Body - FastAPI',
+#   'description': 'FastAPI framework, high performance...',
+#   'lang': 'en',
+# }
 
 # Async
 async def main():
@@ -58,7 +102,57 @@ async def main():
         print(doc.page_content)
 ```
 
-### LangChain — Tool (for agents)
+### Batch Loader — parallel URL list
+
+```python
+from dompruner.langchain import DomPrunerBatchLoader
+
+urls = [
+    "https://docs.python.org/3/library/asyncio-task.html",
+    "https://docs.python.org/3/library/asyncio-stream.html",
+    "https://docs.python.org/3/library/asyncio-sync.html",
+]
+
+# Fetches all URLs concurrently (default: 10 at a time)
+docs = DomPrunerBatchLoader(urls, query="asyncio", concurrency=5).load()
+print(f"Loaded {len(docs)} documents")
+```
+
+### Sitemap Loader — entire site
+
+```python
+from dompruner.langchain import DomPrunerSitemapLoader
+
+loader = DomPrunerSitemapLoader(
+    "https://docs.python.org/sitemap.xml",
+    query="asyncio",
+    filter_urls=["https://docs.python.org/3/library/asyncio"],  # optional prefix filter
+    concurrency=10,
+)
+docs = loader.load()
+print(f"Loaded {len(docs)} pages from sitemap")
+```
+
+### Retriever — for RetrievalQA and RAG chains
+
+```python
+from dompruner.langchain import DomPrunerRetriever
+from langchain.chains import RetrievalQA
+from langchain_openai import ChatOpenAI
+
+retriever = DomPrunerRetriever(
+    urls=[
+        "https://docs.example.com/api",
+        "https://docs.example.com/guide",
+    ],
+    query_as_bm25=True,  # retrieval query is forwarded to BM25 section filter
+)
+
+qa = RetrievalQA.from_chain_type(llm=ChatOpenAI(), retriever=retriever)
+qa.invoke("How do I authenticate?")
+```
+
+### Tool — for agents
 
 ```python
 from dompruner.langchain import DomPrunerFetchTool
@@ -68,7 +162,7 @@ tool = DomPrunerFetchTool()
 llm = ChatAnthropic(model="claude-haiku-4-5").bind_tools([tool])
 ```
 
-Or drop it into any `create_react_agent` / LangGraph agent:
+Or with LangGraph:
 
 ```python
 from langgraph.prebuilt import create_react_agent
@@ -110,8 +204,8 @@ URL
       │           walks __NEXT_DATA__ RSC tuple tree → clean Markdown  (≥ 97% reduction)
       │           skips DOM parse entirely
       │
-      └─▶ [SSR/CSR]  BeautifulSoup DOM tree
-                └─▶ FQN Router (L1)        keeps p / h1–h5 / li / pre / code
+      └─▶ [SSR/CSR]  BeautifulSoup DOM tree  (parsed once — content + meta shared)
+                └─▶ FQN Router (L1)        keeps p / h1–h5 / li / pre / code / table
                      │                     prunes nav / footer / aside / form
                      └─▶ Heading Cluster (L2)  dev-doc structure detection
                           └─▶ CETD Engine (L3)  text-density scoring fallback
@@ -202,23 +296,71 @@ A 2026 controlled scaling study shows BM25 overtaking agentic search at 10M corp
 @dataclass
 class PipelineResult:
     url: str
-    render_type: str          # "SSG" | "SSR" | "CSR"
+    render_type: str                # "SSG" | "SSR" | "CSR"
     markdown: str
-    original_tokens: int      # len(raw_html) // 4
-    refined_tokens: int       # len(markdown) // 4
-    reduction_ratio: float    # 1 - refined / original
+    original_tokens: int            # len(raw_html) // 4
+    refined_tokens: int             # len(markdown) // 4
+    reduction_ratio: float          # 1 - refined / original
     fetch_ms: float
     parse_ms: float
     bm25_confidence: float | None   # None = no query or zero-score fallback
+    cached: bool                    # True = returned from LRU cache
+    meta: dict                      # page-level metadata extracted from DOM
+```
+
+`meta` fields (present only when found in the page):
+
+| Key | Source |
+|-----|--------|
+| `title` | `<title>` → `og:title` fallback |
+| `description` | `meta[name=description]` → `og:description` |
+| `author` | `meta[name=author]` → `article:author` |
+| `published_time` | `article:published_time` |
+| `modified_time` | `article:modified_time` |
+| `canonical_url` | `<link rel="canonical">` |
+| `lang` | `<html lang="...">` |
+| `site_name` | `og:site_name` |
+
+### `sync_run(coro) → PipelineResult`
+
+Run `run_pipeline` from synchronous code safely. Handles Jupyter notebooks and frameworks with a running event loop (FastAPI, etc.) by offloading to a worker thread when needed.
+
+```python
+from dompruner import sync_run, run_pipeline
+result = sync_run(run_pipeline(url, query))
 ```
 
 ### `DomPrunerLoader(url, query="")`
 
-LangChain `BaseLoader`. Produces one `Document` per URL with metadata matching `PipelineResult` fields. Supports both `load()` (sync) and `alazy_load()` (async).
+LangChain `BaseLoader`. Produces one `Document` per call. Supports `load()` (sync) and `alazy_load()` (async).
+
+### `DomPrunerBatchLoader(urls, query="", concurrency=10, ignore_errors=True)`
+
+LangChain `BaseLoader`. Fetches a list of URLs concurrently. `asyncio.Semaphore(concurrency)` caps simultaneous fetches. `ignore_errors=True` skips failed URLs silently. Supports `load()` and `alazy_load()`.
+
+### `DomPrunerSitemapLoader(sitemap_url, query="", filter_urls=None, concurrency=10)`
+
+LangChain `BaseLoader`. Resolves a sitemap (including recursive `sitemapindex`) and fetches all matching URLs. `filter_urls` accepts a list of URL prefixes — only pages whose URL starts with a prefix are fetched.
+
+### `DomPrunerRetriever(urls, query_as_bm25=True, concurrency=10, ignore_errors=True)`
+
+LangChain `BaseRetriever`. Plugs directly into `RetrievalQA`, `ConversationalRetrievalChain`, and any chain accepting a retriever. When `query_as_bm25=True`, the retrieval query is forwarded to dompruner's BM25 section filter.
 
 ### `DomPrunerFetchTool()`
 
 LangChain `BaseTool`. Name: `dompruner_fetch`. Args: `url` (str), `query` (str, optional). Returns the pruned Markdown string. Supports `_run` (sync) and `_arun` (async).
+
+### Cache
+
+```python
+from dompruner import get_cache
+
+cache = get_cache()
+print(cache.stats)   # {'hits': 12, 'misses': 3, 'evictions': 0}
+cache.clear()
+```
+
+Default: `maxsize=256` (~1.5 MB), `ttl=300` seconds. Thundering herd protection via per-key `asyncio.Semaphore` + double-check pattern.
 
 ---
 
@@ -226,19 +368,25 @@ LangChain `BaseTool`. Name: `dompruner_fetch`. Args: `url` (str), `query` (str, 
 
 ```
 dompruner/
-  __init__.py          — run_pipeline, PipelineResult (public API)
+  __init__.py          — run_pipeline, sync_run, PipelineResult (public API)
+  __main__.py          — CLI: python -m dompruner <url> [query] [--json]
   pipeline.py          — Orchestrator: fetch → detect → extract → BM25 → serialize
+                         LRU+TTL cache + per-key Semaphore (thundering herd protection)
   fetcher.py           — Tiered HTTP fetch (httpx → UA rotation → Playwright)
-  extractor.py         — L1→L2→L3 extraction cascade
+  extractor.py         — L1→L2→L3 extraction cascade + extract_meta()
                          L1: FQN Router (CONTENT_TAGS selector + NOISE_TAGS prune)
                          L2: Heading Cluster (dev-doc detection, link density < 0.3)
-                         L3: CETD Engine (text-density scoring, score = textLen/tagCount × (1-linkRatio) × depthPenalty)
+                         L3: CETD Engine (text-density scoring)
   ssg.py               — __NEXT_DATA__ / Nuxt RSC tuple tree walker
   bm25.py              — BM25+ section filter (heading boost 2.5× + ancestor preservation)
-  serializer.py        — FQNNode[] → Compact Markdown + token estimator
+  serializer.py        — FQNNode[] → Compact Markdown (tables, code, headings, lists)
+  cache.py             — LRUTTLCache[V]: OrderedDict + asyncio.Lock + TTL eviction
   langchain/
-    loader.py          — DomPrunerLoader (BaseLoader)
-    tool.py            — DomPrunerFetchTool (BaseTool)
+    loader.py          — DomPrunerLoader (BaseLoader, single URL)
+    batch_loader.py    — DomPrunerBatchLoader (BaseLoader, URL list, parallel)
+    sitemap_loader.py  — DomPrunerSitemapLoader (BaseLoader, sitemap.xml recursive)
+    retriever.py       — DomPrunerRetriever (BaseRetriever, for RetrievalQA)
+    tool.py            — DomPrunerFetchTool (BaseTool, for agents)
 ```
 
 **Faithful Python port:** the extraction logic (FQN Router, Heading Cluster, CETD, SSG RSC walker, BM25+ section filter) is a direct port of the [dompruner-mcp TypeScript implementation](https://github.com/dong7812/dompruner-mcp). All scoring constants, tag sets, and fallback thresholds match the original.
