@@ -120,11 +120,13 @@ class DomPrunerSitemapLoader(BaseLoader):
         query: str = "",
         filter_urls: list[str] | None = None,
         concurrency: int = 10,
+        ignore_errors: bool = True,
     ) -> None:
         self.sitemap_url = sitemap_url
         self.query = query
         self.filter_urls = filter_urls
         self.concurrency = concurrency
+        self.ignore_errors = ignore_errors
 
     def _matches(self, url: str) -> bool:
         if not self.filter_urls:
@@ -173,7 +175,9 @@ class DomPrunerSitemapLoader(BaseLoader):
                         },
                     )
                 except Exception:
-                    return None
+                    if self.ignore_errors:
+                        return None
+                    raise
 
         # 4단계: as_completed로 완료된 순서대로 즉시 yield
         # gather()와 달리 모든 완료를 기다리지 않고 스트리밍 방식으로 반환

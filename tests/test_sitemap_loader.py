@@ -146,3 +146,43 @@ async def test_sitemap_loader_metadata_includes_cached():
     assert "cached" in docs[0].metadata
     assert docs[0].metadata["cached"] is False
 
+
+@pytest.mark.asyncio
+async def test_sitemap_loader_ignore_errors_true_skips_failures():
+    from dompruner.langchain import DomPrunerSitemapLoader
+
+    async def fail_pipeline(url, query=""):
+        raise RuntimeError("fetch failed")
+
+    with (
+        patch(
+            "dompruner.langchain.sitemap_loader._collect_urls",
+            new=AsyncMock(return_value=["https://example.com/bad"]),
+        ),
+        patch("dompruner.langchain.sitemap_loader.run_pipeline", side_effect=fail_pipeline),
+    ):
+        loader = DomPrunerSitemapLoader("https://example.com/sitemap.xml", ignore_errors=True)
+        docs = [doc async for doc in loader.alazy_load()]
+
+    assert docs == []
+
+
+@pytest.mark.asyncio
+async def test_sitemap_loader_ignore_errors_false_raises():
+    from dompruner.langchain import DomPrunerSitemapLoader
+
+    async def fail_pipeline(url, query=""):
+        raise RuntimeError("fetch failed")
+
+    with (
+        patch(
+            "dompruner.langchain.sitemap_loader._collect_urls",
+            new=AsyncMock(return_value=["https://example.com/bad"]),
+        ),
+        patch("dompruner.langchain.sitemap_loader.run_pipeline", side_effect=fail_pipeline),
+    ):
+        loader = DomPrunerSitemapLoader("https://example.com/sitemap.xml", ignore_errors=False)
+        with pytest.raises(RuntimeError):
+            async for _ in loader.alazy_load():
+                pass
+
