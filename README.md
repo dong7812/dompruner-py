@@ -38,6 +38,8 @@ print(f"Fetch: {result.fetch_ms:.0f}ms · Parse: {result.parse_ms:.1f}ms")
 
 ### LangChain — Document Loader
 
+> Listed in the [LangChain Python integrations overview](https://docs.langchain.com/oss/python/integrations/document_loaders) as a third-party web loader. The overview links directly to this repository — there is no separate hosted docs page.
+
 ```python
 from dompruner.langchain import DomPrunerLoader
 
@@ -263,6 +265,7 @@ python bench.py
 ## Related
 
 - **[dompruner-mcp](https://github.com/dong7812/dompruner-mcp)** — Node.js MCP server. Adds `dompruner_fetch` as an MCP tool to Claude Code, Claude Desktop, Cursor, Windsurf, and any MCP-compatible client. Zero install — `npx -y dompruner-mcp`.
+- **[LangChain integrations overview](https://docs.langchain.com/oss/python/integrations/document_loaders)** — dompruner is listed as a third-party web loader. LangChain's current policy links out to maintainer repos rather than hosting integration docs directly.
 
 ---
 
