@@ -57,7 +57,7 @@ Each layer runs only if the previous layer's output doesn't meet the coverage th
 
 ## BM25+ Section Filter
 
-When `query` is provided, extracted sections are scored and ranked. Three adjustments over standard BM25:
+When `query` is provided **and** the extracted content exceeds 1,200 tokens **and** there are more than 2 sections, extracted sections are scored and ranked. Three adjustments over standard BM25:
 
 - **Heading boost (2.5×)** — sections under a relevant heading rank higher
 - **Depth decay (0.4)** — deeply nested nodes score lower than top-level content
@@ -65,7 +65,7 @@ When `query` is provided, extracted sections are scored and ranked. Three adjust
 
 Sections are selected greedily until a 1,200-token budget is reached.
 
-**Zero-score fallback:** if the query terms match nothing (BM25 max = 0), the full clean content is returned instead of an empty result. `bm25_confidence` is set to `None` in this case.
+**Zero-score fallback:** if the query terms match nothing (BM25 max = 0), the full clean content is returned instead of an empty result. `bm25_confidence` is set to `0.0` in this case (as opposed to `None`, which means no query was provided).
 
 ---
 

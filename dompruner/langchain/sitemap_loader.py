@@ -112,6 +112,8 @@ class DomPrunerSitemapLoader(BaseLoader):
         filter_urls: Optional list of URL prefixes — only pages whose URL starts
             with one of these prefixes are included.
         concurrency: Max simultaneous page fetches (default 10).
+        ignore_errors: If True, failed page fetches are skipped silently.
+            If False, any fetch error raises immediately. Default True.
     """
 
     def __init__(

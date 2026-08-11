@@ -7,9 +7,9 @@ English | [한국어](./README.ko.md)
 LLM 에이전트가 웹 페이지를 가져오면, 필요 없는 수만 토큰의 raw HTML을 받게 됩니다 — 네비게이션, 광고, 스크립트, 푸터. dompruner는 DOM AST 파싱으로 이것들을 제거하고 **원본 콘텐츠를 그대로 모델에 전달**합니다. 중간 요약 모델도, API 키도, 벡터 데이터베이스도 필요 없습니다.
 
 ```
-> docs.python.org/3/library/asyncio-task.html
+> docs.python.org/3/library/asyncio-task.html  (query: "create_task")
 > Raw HTML   44,315 토큰
-> dompruner   1,275 토큰  (97.1% 절감)
+> dompruner   1,275 토큰  (97.1% 절감, BM25 섹션 필터 적용)
 ```
 
 ---

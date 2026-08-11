@@ -7,9 +7,9 @@ English | [한국어](./README.ko.md)
 When an LLM agent fetches a web page, it receives tens of thousands of raw HTML tokens it doesn't need — navigation, ads, scripts, footers. dompruner strips all of that via DOM AST parsing and passes the **original content, unchanged, directly to the model**. No intermediate summarization model, no API key, no vector database.
 
 ```
-> docs.python.org/3/library/asyncio-task.html
+> docs.python.org/3/library/asyncio-task.html  (query: "create_task")
 > Raw HTML   44,315 tokens
-> dompruner   1,275 tokens  (97.1% reduction)
+> dompruner   1,275 tokens  (97.1% reduction, BM25 section filter applied)
 ```
 
 ---
