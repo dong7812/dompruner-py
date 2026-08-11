@@ -1,6 +1,6 @@
 # dompruner
 
-[한국어](./README.ko.md) | English
+English | [한국어](./README.ko.md)
 
 > Python port of [dompruner-mcp](https://github.com/dong7812/dompruner-mcp) — DOM AST pruning for LangChain, LlamaIndex, and direct use.
 
