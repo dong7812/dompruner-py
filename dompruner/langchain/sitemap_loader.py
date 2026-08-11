@@ -168,6 +168,7 @@ class DomPrunerSitemapLoader(BaseLoader):
                             "refined_tokens": result.refined_tokens,
                             "reduction_ratio": result.reduction_ratio,
                             "bm25_confidence": result.bm25_confidence,
+                            "cached": result.cached,
                             **result.meta,
                         },
                     )

@@ -113,3 +113,36 @@ async def test_sitemap_loader_filter_urls():
     assert len(docs) == 1
     assert docs[0].metadata["source"] == "https://example.com/docs/intro"
     assert docs[0].metadata["reduction_ratio"] == 0.95
+
+
+@pytest.mark.asyncio
+async def test_sitemap_loader_metadata_includes_cached():
+    from dompruner.langchain import DomPrunerSitemapLoader
+    from dompruner.pipeline import PipelineResult
+
+    mock_result = PipelineResult(
+        url="https://example.com/page",
+        render_type="SSR",
+        markdown="# Page",
+        original_tokens=500,
+        refined_tokens=25,
+        reduction_ratio=0.95,
+        fetch_ms=80,
+        parse_ms=8,
+        cached=False,
+    )
+
+    with (
+        patch(
+            "dompruner.langchain.sitemap_loader._collect_urls",
+            new=AsyncMock(return_value=["https://example.com/page"]),
+        ),
+        patch("dompruner.langchain.sitemap_loader.run_pipeline", new=AsyncMock(return_value=mock_result)),
+    ):
+        loader = DomPrunerSitemapLoader("https://example.com/sitemap.xml")
+        docs = [doc async for doc in loader.alazy_load()]
+
+    assert len(docs) == 1
+    assert "cached" in docs[0].metadata
+    assert docs[0].metadata["cached"] is False
+
