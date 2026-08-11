@@ -51,15 +51,17 @@ async def _fetch_with_fallback(url: str, headers: dict) -> tuple[str, str]:
         try:
             r = await client.get(url, headers=headers)
             if r.status_code not in (403, 429):
+                r.raise_for_status()   # 4xx/5xx → HTTPStatusError (not caught below)
                 return r.text, str(r.url)
         except httpx.RequestError:
             pass
 
-        # L2: UA rotation
+        # L2: UA rotation (403/429 or network error from L1)
         for ua in _USER_AGENTS[1:]:
             try:
                 r = await client.get(url, headers={**headers, "User-Agent": ua})
                 if r.status_code not in (403, 429):
+                    r.raise_for_status()
                     return r.text, str(r.url)
             except httpx.RequestError:
                 continue
