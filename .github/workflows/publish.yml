@@ -1,0 +1,26 @@
+name: Publish to PyPI
+
+on:
+  push:
+    tags:
+      - "v*"   # v0.2.0, v0.3.0 등 태그 push 시 자동 실행
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: pypi          # PyPI Trusted Publisher 환경
+    permissions:
+      id-token: write          # OIDC 토큰 발급 (API key 불필요)
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build
+        run: uv build
+
+      - name: Publish
+        uses: pypa/gh-action-pypi-publish@release/v1
