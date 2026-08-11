@@ -60,8 +60,31 @@ class FQNNode:
 # ── Public API ────────────────────────────────────────────────────────────────
 
 def extract_content(html: str) -> list[FQNNode]:
-    soup = BeautifulSoup(html, "html.parser")
+    """Parse HTML and extract content nodes. Public API — accepts raw HTML string."""
+    return _extract_content_from_soup(BeautifulSoup(html, "html.parser"))
 
+
+def extract_meta(html: str) -> dict[str, str]:
+    """Extract page-level metadata from DOM-native tags (<meta>, <title>, <link>, <html lang>).
+
+    JSON-LD is intentionally excluded — it lives inside <script> and is not part of the
+    DOM content tree that dompruner operates on.
+
+    Returns only keys that have a non-empty value; missing fields are omitted.
+    """
+    return _extract_meta_from_soup(BeautifulSoup(html, "html.parser"))
+
+
+def extract_content_and_meta(html: str) -> tuple[list[FQNNode], dict[str, str]]:
+    """Parse HTML once and return both content nodes and metadata.
+
+    Use this in pipeline code to avoid parsing the same HTML twice.
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    return _extract_content_from_soup(soup), _extract_meta_from_soup(soup)
+
+
+def _extract_content_from_soup(soup: BeautifulSoup) -> list[FQNNode]:
     layer1 = _fqn_route(soup)
     if _has_coverage(layer1):
         return layer1
@@ -75,6 +98,53 @@ def extract_content(html: str) -> list[FQNNode]:
         return layer3
 
     return layer1 if layer1 else (layer2 or [])
+
+
+def _extract_meta_from_soup(soup: BeautifulSoup) -> dict[str, str]:
+    meta: dict[str, str] = {}
+
+    # <title> tag — highest priority for title
+    title_tag = soup.find("title")
+    if isinstance(title_tag, Tag):
+        t = title_tag.get_text(strip=True)
+        if t:
+            meta["title"] = t
+
+    # <html lang="...">
+    html_tag = soup.find("html")
+    if isinstance(html_tag, Tag):
+        lang = html_tag.get("lang", "")
+        if lang:
+            meta["lang"] = str(lang).strip()
+
+    # <link rel="canonical">
+    canonical = soup.find("link", attrs={"rel": "canonical"})
+    if isinstance(canonical, Tag):
+        href = canonical.get("href", "")
+        if href:
+            meta["canonical_url"] = str(href).strip()
+
+    # <meta> and <meta property="og:..."> — checked in priority order per field
+    _META_SELECTORS: list[tuple[str, list[tuple[str, str]]]] = [
+        ("title",          [("property", "og:title")]),                          # <title> already handled above
+        ("description",    [("name", "description"), ("property", "og:description")]),
+        ("author",         [("name", "author"), ("property", "article:author")]),
+        ("published_time", [("property", "article:published_time")]),
+        ("modified_time",  [("property", "article:modified_time")]),
+        ("site_name",      [("property", "og:site_name")]),
+    ]
+    for key, selectors in _META_SELECTORS:
+        if key in meta:
+            continue
+        for attr, val in selectors:
+            el = soup.find("meta", attrs={attr: val})
+            if isinstance(el, Tag):
+                content = str(el.get("content", "")).strip()
+                if content:
+                    meta[key] = content
+                    break
+
+    return meta
 
 
 def _collect_fqn_nodes(root: Tag) -> list[FQNNode]:

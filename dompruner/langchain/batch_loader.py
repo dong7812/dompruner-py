@@ -7,7 +7,7 @@ from typing import AsyncIterator, Iterator
 from langchain_core.document_loaders.base import BaseLoader
 from langchain_core.documents import Document
 
-from ..pipeline import run_pipeline
+from ..pipeline import run_pipeline, sync_run
 
 
 class DomPrunerBatchLoader(BaseLoader):
@@ -42,7 +42,7 @@ class DomPrunerBatchLoader(BaseLoader):
                 docs.append(doc)
             return docs
 
-        yield from asyncio.get_event_loop().run_until_complete(_gather())
+        yield from sync_run(_gather())
 
     async def alazy_load(self) -> AsyncIterator[Document]:
         sem = asyncio.Semaphore(self.concurrency)
@@ -61,6 +61,7 @@ class DomPrunerBatchLoader(BaseLoader):
                             "reduction_ratio": result.reduction_ratio,
                             "bm25_confidence": result.bm25_confidence,
                             "cached": result.cached,
+                            **result.meta,
                         },
                     )
                 except Exception:

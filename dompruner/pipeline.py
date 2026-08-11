@@ -4,10 +4,11 @@ import asyncio
 import concurrent.futures
 import time
 from dataclasses import dataclass
+from dataclasses import field as dataclasses_field
 
 from .bm25 import bm25_filter
 from .cache import LRUTTLCache
-from .extractor import extract_content
+from .extractor import extract_content_and_meta
 from .fetcher import FetchResult, fetch_page
 from .serializer import estimate_tokens, serialize
 from .ssg import extract_ssg_markdown
@@ -25,6 +26,7 @@ class PipelineResult:
     parse_ms: float
     bm25_confidence: float | None = None
     cached: bool = False
+    meta: dict = dataclasses_field(default_factory=dict)
 
 
 # 프로세스 전역 캐시 — 같은 세션 내 중복 fetch 방지
@@ -70,7 +72,7 @@ def _as_cached(r: PipelineResult) -> PipelineResult:
         url=r.url, render_type=r.render_type, markdown=r.markdown,
         original_tokens=r.original_tokens, refined_tokens=r.refined_tokens,
         reduction_ratio=r.reduction_ratio, fetch_ms=0.0, parse_ms=0.0,
-        bm25_confidence=r.bm25_confidence, cached=True,
+        bm25_confidence=r.bm25_confidence, cached=True, meta=r.meta,
     )
 
 
@@ -108,23 +110,23 @@ async def _do_fetch(url: str, query: str) -> PipelineResult:
     bm25_confidence: float | None = None
     render_type = fetched.render_type
 
+    # Parse HTML once — content nodes and page metadata share the same BS4 tree
+    nodes, meta = extract_content_and_meta(fetched.html)
+
     if fetched.render_type == "SSG" and fetched.ssg_payload is not None:
         ssg = extract_ssg_markdown(fetched.ssg_payload)
         if ssg is not None:
             markdown = ssg["markdown"]
             if query:
-                nodes = extract_content(fetched.html)
                 nodes, bm25_confidence = bm25_filter(nodes, query)
                 if bm25_confidence and bm25_confidence > 0:
                     markdown = serialize(nodes)
         else:
             render_type = "SSR"
-            nodes = extract_content(fetched.html)
             if query:
                 nodes, bm25_confidence = bm25_filter(nodes, query)
             markdown = serialize(nodes)
     else:
-        nodes = extract_content(fetched.html)
         if query:
             nodes, bm25_confidence = bm25_filter(nodes, query)
         markdown = serialize(nodes)
@@ -143,4 +145,5 @@ async def _do_fetch(url: str, query: str) -> PipelineResult:
         parse_ms=parse_ms,
         bm25_confidence=bm25_confidence,
         cached=False,
+        meta=meta,
     )

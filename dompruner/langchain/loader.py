@@ -6,7 +6,19 @@ from typing import AsyncIterator, Iterator
 from langchain_core.document_loaders.base import BaseLoader
 from langchain_core.documents import Document
 
-from ..pipeline import run_pipeline, sync_run
+from ..pipeline import PipelineResult, run_pipeline, sync_run
+
+
+def _to_metadata(result: PipelineResult) -> dict:
+    return {
+        "source": result.url,
+        "render_type": result.render_type,
+        "original_tokens": result.original_tokens,
+        "refined_tokens": result.refined_tokens,
+        "reduction_ratio": result.reduction_ratio,
+        "bm25_confidence": result.bm25_confidence,
+        **result.meta,
+    }
 
 
 class DomPrunerLoader(BaseLoader):
@@ -27,28 +39,8 @@ class DomPrunerLoader(BaseLoader):
 
     def lazy_load(self) -> Iterator[Document]:
         result = sync_run(run_pipeline(self.url, self.query))
-        yield Document(
-            page_content=result.markdown,
-            metadata={
-                "source": result.url,
-                "render_type": result.render_type,
-                "original_tokens": result.original_tokens,
-                "refined_tokens": result.refined_tokens,
-                "reduction_ratio": result.reduction_ratio,
-                "bm25_confidence": result.bm25_confidence,
-            },
-        )
+        yield Document(page_content=result.markdown, metadata=_to_metadata(result))
 
     async def alazy_load(self) -> AsyncIterator[Document]:
         result = await run_pipeline(self.url, self.query)
-        yield Document(
-            page_content=result.markdown,
-            metadata={
-                "source": result.url,
-                "render_type": result.render_type,
-                "original_tokens": result.original_tokens,
-                "refined_tokens": result.refined_tokens,
-                "reduction_ratio": result.reduction_ratio,
-                "bm25_confidence": result.bm25_confidence,
-            },
-        )
+        yield Document(page_content=result.markdown, metadata=_to_metadata(result))
