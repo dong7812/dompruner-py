@@ -66,7 +66,7 @@ docs = DomPrunerLoader(
 #   bm25_confidence, cached, title, description, lang, author, ...
 ```
 
-→ **[Full LangChain integration guide](./docs/langchain.md)** — Loader, BatchLoader, SitemapLoader, Retriever, Tool
+→ **[Full LangChain integration guide](https://github.com/dong7812/dompruner-py/blob/main/docs/langchain.md)** — Loader, BatchLoader, SitemapLoader, Retriever, Tool
 
 ---
 
@@ -80,7 +80,7 @@ URL → fetch (httpx → UA rotation → Playwright) → render type detection
                     → BM25+ Section Filter → Compact Markdown
 ```
 
-→ **[Architecture & internals](./docs/architecture.md)**
+→ **[Architecture & internals](https://github.com/dong7812/dompruner-py/blob/main/docs/architecture.md)**
 
 ---
 
