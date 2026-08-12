@@ -2,7 +2,7 @@
 
 English | [한국어](./README.ko.md)
 
-> DOM AST web loader for LLM pipelines — strips nav/ads/scripts via DOM AST parsing and delivers original content, token-efficient, to your model.
+> DOM AST middleware for LLM web pipelines — sits between raw HTML and your model, strips nav/ads/scripts via AST parsing, delivers original content token-efficient.
 
 When an LLM agent fetches a web page, it receives tens of thousands of raw HTML tokens it doesn't need — navigation, ads, scripts, footers. dompruner strips all of that via DOM AST parsing and passes the **original content, unchanged, directly to the model**. No intermediate summarization model, no API key, no vector database.
 

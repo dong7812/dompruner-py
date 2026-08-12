@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "dompruner"
 version = "0.7.0"
-description = "DOM AST web loader for LLM pipelines — 90%+ token reduction, no API key"
+description = "DOM AST middleware for LLM web pipelines — 90%+ token reduction, no API key"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
